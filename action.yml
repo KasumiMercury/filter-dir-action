@@ -10,6 +10,10 @@ inputs:
     description: GitHub token for API access
     required: false
     default: ${{ github.token }}
+  manual-directories:
+    description: Comma-separated list of directory names for manual execution (e.g., "alpha,beta,gamma")
+    required: false
+    default: ''
 
 outputs:
   filtered-dir-path:
