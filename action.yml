@@ -1,0 +1,16 @@
+name: Hello World
+description: Greet someone and record the time
+
+inputs:
+  target-parent-path:
+    description: The parent directory to filter
+    required: true
+    default: '.'
+
+outputs:
+  filtered-dir-path:
+    description: The path to the filtered directory
+
+runs:
+  using: node20
+  main: dist/index.js
