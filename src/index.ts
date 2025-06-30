@@ -56,8 +56,7 @@ export function filterDirectoriesWithChanges(
   for (const dir of subdirectories) {
     const dirPath: string = path.join(targetParentPath, dir);
     const hasChangedFiles: boolean = changedFiles.some((file: string) => {
-      const relativePath: string = path.relative(process.cwd(), file);
-      return relativePath.startsWith(dirPath + path.sep) || relativePath === dirPath;
+      return file.startsWith(dirPath + path.sep) || file === dirPath;
     });
 
     if (hasChangedFiles) {
@@ -80,9 +79,11 @@ export async function main(): Promise<void> {
   
   const changedFiles: string[] = await getChangedFiles(token, context);
   core.info(`Found ${changedFiles.length} changed files`);
+  core.debug(`Changed files: ${JSON.stringify(changedFiles)}`);
 
   const targetPath: string = path.resolve(targetParentPath);
   const subdirectories: string[] = getSubdirectories(targetPath);
+  core.debug(`Found ${subdirectories.length} subdirectories: ${JSON.stringify(subdirectories)}`);
 
   const dirsWithChanges: string[] = filterDirectoriesWithChanges(
     subdirectories,
