@@ -1,15 +1,19 @@
-name: Hello World
-description: Greet someone and record the time
+name: Filter Directory Action
+description: Filter directories containing changed files in pull requests
 
 inputs:
   target-parent-path:
-    description: The parent directory to filter
+    description: The parent directory to filter subdirectories from
     required: true
     default: '.'
+  github-token:
+    description: GitHub token for API access
+    required: false
+    default: ${{ github.token }}
 
 outputs:
   filtered-dir-path:
-    description: The path to the filtered directory
+    description: JSON array of directory names that contain changed files
 
 runs:
   using: node20
