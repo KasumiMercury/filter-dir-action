@@ -5,9 +5,11 @@
   "license": "ISC",
   "author": "",
   "type": "commonjs",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "build": "ncc build src/index.js -o dist",
+    "build": "tsc",
+    "package": "ncc build --source-map --license licenses.txt",
+    "all": "npm run build && npm run package",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
@@ -15,6 +17,8 @@
     "@actions/github": "^6.0.1"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.38.1"
+    "@types/node": "^24.0.7",
+    "@vercel/ncc": "^0.38.1",
+    "typescript": "^5.8.3"
   }
 }
