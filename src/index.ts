@@ -3,20 +3,24 @@ import * as github from "@actions/github";
 import * as fs from "fs";
 import * as path from "path";
 
-interface PullRequestFile {
+export interface PullRequestFile {
   filename: string;
   status: string;
 }
 
-async function main(): Promise<void> {
-  const targetParentPath: string = core.getInput("target-parent-path");
-  const token: string = core.getInput("github-token") || process.env.GITHUB_TOKEN || "";
-  
-  if (!token) {
-    throw new Error("GitHub token is required");
-  }
+export interface GitHubContext {
+  repo: {
+    owner: string;
+    repo: string;
+  };
+  payload: {
+    pull_request?: {
+      number: number;
+    };
+  };
+}
 
-  const context = github.context;
+export async function getChangedFiles(token: string, context: GitHubContext): Promise<string[]> {
   if (!context.payload.pull_request) {
     throw new Error("This action only works on pull requests");
   }
@@ -29,19 +33,24 @@ async function main(): Promise<void> {
     pull_number: context.payload.pull_request.number,
   });
 
-  const changedFiles: string[] = files.map((file: PullRequestFile) => file.filename);
-  core.info(`Found ${changedFiles.length} changed files`);
+  return files.map((file: PullRequestFile) => file.filename);
+}
 
-  const targetPath: string = path.resolve(targetParentPath);
-  
+export function getSubdirectories(targetPath: string): string[] {
   if (!fs.existsSync(targetPath)) {
     throw new Error(`Target directory does not exist: ${targetPath}`);
   }
 
-  const subdirectories: string[] = fs.readdirSync(targetPath, { withFileTypes: true })
+  return fs.readdirSync(targetPath, { withFileTypes: true })
     .filter(dirent => dirent.isDirectory())
     .map(dirent => dirent.name);
+}
 
+export function filterDirectoriesWithChanges(
+  subdirectories: string[],
+  changedFiles: string[],
+  targetParentPath: string
+): string[] {
   const dirsWithChanges: string[] = [];
 
   for (const dir of subdirectories) {
@@ -56,14 +65,42 @@ async function main(): Promise<void> {
     }
   }
 
+  return dirsWithChanges;
+}
+
+export async function main(): Promise<void> {
+  const targetParentPath: string = core.getInput("target-parent-path");
+  const token: string = core.getInput("github-token") || process.env.GITHUB_TOKEN || "";
+  
+  if (!token) {
+    throw new Error("GitHub token is required");
+  }
+
+  const context = github.context as GitHubContext;
+  
+  const changedFiles: string[] = await getChangedFiles(token, context);
+  core.info(`Found ${changedFiles.length} changed files`);
+
+  const targetPath: string = path.resolve(targetParentPath);
+  const subdirectories: string[] = getSubdirectories(targetPath);
+
+  const dirsWithChanges: string[] = filterDirectoriesWithChanges(
+    subdirectories,
+    changedFiles,
+    targetParentPath
+  );
+
   const result: string = JSON.stringify(dirsWithChanges);
   core.info(`Directories with changes: ${result}`);
   core.setOutput("filtered-dir-path", result);
 }
 
-try {
-  main();
-} catch (error: unknown) {
-  const errorMessage: string = error instanceof Error ? error.message : String(error);
-  core.setFailed(errorMessage);
+// Only run main if this is the entry point (not during testing)
+if (process.env.NODE_ENV !== 'test') {
+  try {
+    main();
+  } catch (error: unknown) {
+    const errorMessage: string = error instanceof Error ? error.message : String(error);
+    core.setFailed(errorMessage);
+  }
 }
