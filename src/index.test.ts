@@ -7,6 +7,8 @@ import {
   getChangedFiles,
   getSubdirectories,
   filterDirectoriesWithChanges,
+  parseManualDirectories,
+  getManualTargetDirectories,
   main,
   type GitHubContext,
   type PullRequestFile
@@ -365,6 +367,166 @@ describe('Filter Directory Action', () => {
       mockGithub.getOctokit.mockReturnValue(mockOctokit as any)
 
       await expect(main()).rejects.toThrow('GitHub API Error')
+    })
+  })
+
+  describe('parseManualDirectories', () => {
+    it('should parse comma-separated directories correctly', () => {
+      const input = 'alpha,beta,gamma,delta'
+      const result = parseManualDirectories(input)
+      expect(result).toEqual(['alpha', 'beta', 'gamma', 'delta'])
+    })
+
+    it('should handle directories with spaces around commas', () => {
+      const input = 'alpha, beta,gamma , delta'
+      const result = parseManualDirectories(input)
+      expect(result).toEqual(['alpha', 'beta', 'gamma', 'delta'])
+    })
+
+    it('should handle empty input', () => {
+      expect(parseManualDirectories('')).toEqual([])
+      expect(parseManualDirectories('   ')).toEqual([])
+    })
+
+    it('should filter out empty directory names', () => {
+      const input = 'alpha,,beta, ,gamma'
+      const result = parseManualDirectories(input)
+      expect(result).toEqual(['alpha', 'beta', 'gamma'])
+    })
+
+    it('should handle single directory', () => {
+      const input = 'alpha'
+      const result = parseManualDirectories(input)
+      expect(result).toEqual(['alpha'])
+    })
+  })
+
+  describe('getManualTargetDirectories', () => {
+    it('should return all available directories when manual list is empty', () => {
+      const manualDirectories: string[] = []
+      const availableDirectories = ['alpha', 'beta', 'gamma', 'delta']
+      const result = getManualTargetDirectories(manualDirectories, availableDirectories)
+      expect(result).toEqual(['alpha', 'beta', 'gamma', 'delta'])
+    })
+
+    it('should filter manual directories by available directories', () => {
+      const manualDirectories = ['alpha', 'beta', 'gamma', 'delta']
+      const availableDirectories = ['alpha', 'beta', 'other']
+      const result = getManualTargetDirectories(manualDirectories, availableDirectories)
+      expect(result).toEqual(['alpha', 'beta'])
+    })
+
+    it('should handle no matching directories', () => {
+      const manualDirectories = ['nonexistent1', 'nonexistent2']
+      const availableDirectories = ['alpha', 'beta']
+      const result = getManualTargetDirectories(manualDirectories, availableDirectories)
+      expect(result).toEqual([])
+    })
+
+    it('should handle empty available directories', () => {
+      const manualDirectories = ['alpha', 'beta']
+      const availableDirectories: string[] = []
+      const result = getManualTargetDirectories(manualDirectories, availableDirectories)
+      expect(result).toEqual([])
+    })
+  })
+
+  describe('main - manual mode', () => {
+    let mockContext: GitHubContext
+
+    beforeEach(() => {
+      mockContext = {
+        repo: { owner: 'testowner', repo: 'testrepo' },
+        payload: {}
+      }
+
+      const mockDirents = [
+        { name: 'alpha', isDirectory: () => true },
+        { name: 'beta', isDirectory: () => true },
+        { name: 'gamma', isDirectory: () => true },
+        { name: 'delta', isDirectory: () => true }
+      ]
+
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readdirSync.mockReturnValue(mockDirents as any)
+      mockPath.resolve.mockReturnValue('/workspace/src')
+      mockGithub.context = mockContext as any
+    })
+
+    it('should run in manual mode with specific directories', async () => {
+      mockCore.getInput.mockImplementation((name: string) => {
+        switch (name) {
+          case 'target-parent-path':
+            return 'src'
+          case 'manual-directories':
+            return 'alpha,beta,gamma'
+          default:
+            return ''
+        }
+      })
+
+      await main()
+
+      expect(mockCore.info).toHaveBeenCalledWith('Running in manual mode')
+      expect(mockCore.info).toHaveBeenCalledWith('Manual target directories: ["alpha","beta","gamma"]')
+      expect(mockCore.setOutput).toHaveBeenCalledWith('filtered-dir-path', '["alpha","beta","gamma"]')
+    })
+
+    it('should run in manual mode with all directories when input is empty', async () => {
+      mockCore.getInput.mockImplementation((name: string) => {
+        switch (name) {
+          case 'target-parent-path':
+            return 'src'
+          case 'manual-directories':
+            return ''
+          default:
+            return ''
+        }
+      })
+
+      await main()
+
+      expect(mockCore.info).toHaveBeenCalledWith('Running in manual mode')
+      expect(mockCore.info).toHaveBeenCalledWith('Manual target directories: ["alpha","beta","gamma","delta"]')
+      expect(mockCore.setOutput).toHaveBeenCalledWith('filtered-dir-path', '["alpha","beta","gamma","delta"]')
+    })
+
+    it('should filter directories that exist in target directory', async () => {
+      mockCore.getInput.mockImplementation((name: string) => {
+        switch (name) {
+          case 'target-parent-path':
+            return 'src'
+          case 'manual-directories':
+            return 'alpha,beta,nonexistent,gamma'
+          default:
+            return ''
+        }
+      })
+
+      await main()
+
+      expect(mockCore.info).toHaveBeenCalledWith('Running in manual mode')
+      expect(mockCore.info).toHaveBeenCalledWith('Manual target directories: ["alpha","beta","gamma"]')
+      expect(mockCore.setOutput).toHaveBeenCalledWith('filtered-dir-path', '["alpha","beta","gamma"]')
+    })
+
+    it('should handle manual directories with spaces', async () => {
+      mockCore.getInput.mockImplementation((name: string) => {
+        switch (name) {
+          case 'target-parent-path':
+            return 'src'
+          case 'manual-directories':
+            return 'alpha, beta,gamma ,delta'
+          default:
+            return ''
+        }
+      })
+
+      await main()
+
+      expect(mockCore.info).toHaveBeenCalledWith('Running in manual mode')
+      expect(mockCore.info).toHaveBeenCalledWith('Manual target directories: ["alpha","beta","gamma","delta"]')
+      expect(mockCore.setOutput).toHaveBeenCalledWith('filtered-dir-path', '["alpha","beta","gamma","delta"]')
     })
   })
 
