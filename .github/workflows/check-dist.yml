@@ -1,0 +1,87 @@
+name: Check Dist Files
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  check-dist:
+    runs-on: ubuntu-latest
+    
+    # Only run on PRs from release/* branches
+    if: startsWith(github.head_ref, 'release/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+      with:
+        # Fetch full history to check all commits in PR
+        fetch-depth: 0
+        
+    - name: Check for dist/ changes in PR commits
+      run: |
+        echo "🔍 Checking for dist/ changes in pull request commits..."
+        
+        # Get the base commit (main branch)
+        BASE_SHA=$(git rev-parse origin/main)
+        # Get the head commit (current PR branch)  
+        HEAD_SHA=$(git rev-parse HEAD)
+        
+        echo "📋 Base commit (main): $BASE_SHA"
+        echo "📋 Head commit (PR): $HEAD_SHA"
+        echo ""
+        
+        # Get all commits in this PR
+        COMMITS=$(git rev-list --reverse $BASE_SHA..$HEAD_SHA)
+        
+        if [ -z "$COMMITS" ]; then
+          echo "❌ No commits found in this pull request"
+          exit 1
+        fi
+        
+        echo "📝 Commits in this PR:"
+        git log --oneline $BASE_SHA..$HEAD_SHA
+        echo ""
+        
+        # Check each commit for dist/ changes
+        DIST_CHANGES_FOUND=false
+        
+        for commit in $COMMITS; do
+          echo "🔎 Checking commit: $commit"
+          
+          # Get changed files in this commit
+          CHANGED_FILES=$(git show --name-only --pretty=format: $commit | grep -v '^$' || true)
+          
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "📁 Changed files in $commit:"
+            echo "$CHANGED_FILES" | sed 's/^/  - /'
+            
+            # Check if any files start with 'dist/'
+            DIST_FILES=$(echo "$CHANGED_FILES" | grep '^dist/' || true)
+            
+            if [ -n "$DIST_FILES" ]; then
+              echo "✅ Found dist/ changes in commit $commit:"
+              echo "$DIST_FILES" | sed 's/^/  - /'
+              DIST_CHANGES_FOUND=true
+            fi
+          else
+            echo "📁 No files changed in $commit"
+          fi
+          echo ""
+        done
+        
+        # Final result
+        if [ "$DIST_CHANGES_FOUND" = true ]; then
+          echo "🎉 SUCCESS: dist/ changes found in pull request!"
+          echo ""
+          echo "✅ This pull request includes the required dist/ files."
+          echo "✅ The GitHub Action can be properly deployed after merge."
+        else
+          echo "❌ FAILURE: No dist/ changes found in pull request!"
+          echo ""
+          echo "This pull request from a release/* branch must include dist/ changes."
+          
+          exit 1
+        fi
