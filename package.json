@@ -22,7 +22,7 @@
     "@types/node": "^24.0.7",
     "@vercel/ncc": "^0.38.1",
     "@vitest/coverage-v8": "^4.0.0",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.0",
     "vitest": "^4.0.0"
   }
 }
